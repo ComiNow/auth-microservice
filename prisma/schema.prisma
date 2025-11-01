@@ -1,0 +1,131 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum IdentificationType {
+  CC
+  CE
+  PA
+  TE
+}
+
+model Business {
+  id                     String                @id @default(auto()) @map("_id") @db.ObjectId
+  name                   String
+  email                  String                @unique
+  phoneNumber            String                @map("phone_number")
+  createdAt              DateTime              @default(now()) @map("created_at")
+  
+  // Relación con UserAdministrator (1:1)
+  userAdministratorId    String                @unique @db.ObjectId @map("user_administrator_id")
+  userAdministrator      UserAdministrator     @relation(fields: [userAdministratorId], references: [id])
+  
+  // Relación con Location (1:1)
+  locationId             String                @unique @db.ObjectId @map("location_id")
+  location               Location              @relation(fields: [locationId], references: [id])
+  
+  // Relación con Employee (1:N)
+  employees              Employee[]
+  
+  // Relación con Role (1:N) - Roles del negocio
+  roles                  Role[]
+  
+  @@map("Business")
+}
+
+model UserAdministrator {
+  id                   String              @id @default(auto()) @map("_id") @db.ObjectId
+  identificationType   IdentificationType  @map("identification_type")
+  identificationNumber String              @unique @map("identification_number")
+  fullName             String              @map("full_name")
+  phoneNumber          String              @map("phone_number")
+  email                String              @unique
+  password             String
+  
+  // Relación inversa con Business (1:1 opcional)
+  business             Business?
+  
+  @@map("UserAdministrator")
+}
+
+model Location {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  state      String
+  city       String
+  postalCode String   @map("postal_code")
+  address    String
+  
+  // Relación inversa con Business (1:1 opcional)
+  business   Business?
+  
+  @@map("Location")
+}
+
+model Employee {
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  identificationNumber String   @map("identification_number")
+  email                String   @unique
+  fullName             String   @map("full_name")
+  password             String
+  
+  // Relación con Business (multitenant)
+  businessId           String   @db.ObjectId @map("business_id")
+  business             Business @relation(fields: [businessId], references: [id])
+  
+  // Relación con Role (N:1) - Un empleado tiene UN solo rol
+  roleId               String   @db.ObjectId @map("role_id")
+  
+  @@unique([identificationNumber, businessId])
+  @@index([businessId])
+  @@index([roleId])
+  @@map("Employee")
+}
+
+// Role (reemplaza Position)
+model Role {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  description   String?
+  isDefault     Boolean  @default(false) @map("is_default")
+  isSystem      Boolean  @default(false) @map("is_system") // true para roles que no se pueden eliminar
+  permissions   String[] // Array de IDs de módulos (permisos)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  
+  // Relación con Business (multitenant)
+  businessId    String   @db.ObjectId @map("business_id")
+  business      Business @relation(fields: [businessId], references: [id])
+  
+  @@unique([name, businessId]) // Un rol debe ser único por negocio
+  @@index([businessId])
+  @@map("Role")
+}
+
+// Mantener Position para compatibilidad (se eliminará después)
+model Position {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  moduleAccess String[]   @map("module_access")
+  
+  @@map("Position")
+}
+
+model Module {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String   @unique
+  displayName String   @map("display_name")
+  description String?
+  icon        String?  // Para el front
+  order       Int      @default(0) // Para ordenar en el front
+  isActive    Boolean  @default(true) @map("is_active")
+  
+  @@map("Module")
+}
