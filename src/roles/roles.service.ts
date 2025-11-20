@@ -15,14 +15,38 @@ export class RolesService extends PrismaClient implements OnModuleInit {
   /**
    * Crear roles por defecto al registrar un negocio
    */
-  async createDefaultRoles(businessId: string): Promise<void> {
+  /**
+   * Crear roles por defecto al registrar un negocio
+   */
+  async createDefaultRoles(businessId: string) {
     try {
+      // Verificar si ya existen roles para este negocio
+      const existingRoles = await this.role.count({
+        where: { businessId },
+      });
+
+      if (existingRoles > 0) {
+        return {
+          message: 'Default roles already exist for this business',
+          count: existingRoles,
+          businessId,
+        };
+      }
+
       // Obtener todos los módulos disponibles
       const allModules = await this.module.findMany({
         where: { isActive: true },
         select: { id: true },
+        orderBy: { order: 'asc' },
       });
       const allPermissions = allModules.map((m) => m.id);
+
+      if (allPermissions.length === 0) {
+        throw new RpcException({
+          status: 400,
+          message: 'No modules found. Please seed modules first.',
+        });
+      }
 
       // Roles por defecto
       const defaultRoles = [
@@ -40,7 +64,7 @@ export class RolesService extends PrismaClient implements OnModuleInit {
             'Acceso a gestión de productos, categorías, órdenes y reportes',
           isDefault: true,
           isSystem: false,
-          permissions: allPermissions.filter((id, index) => index < 5),
+          permissions: allPermissions.slice(0, 5), // Primeros 5 módulos
           businessId,
         },
         {
@@ -48,9 +72,7 @@ export class RolesService extends PrismaClient implements OnModuleInit {
           description: 'Acceso al punto de venta y gestión de órdenes',
           isDefault: true,
           isSystem: false,
-          permissions: allPermissions.filter((id, index) =>
-            [0, 3].includes(index),
-          ),
+          permissions: [allPermissions[0], allPermissions[3]], // POS y PRODUCTS
           businessId,
         },
         {
@@ -58,7 +80,7 @@ export class RolesService extends PrismaClient implements OnModuleInit {
           description: 'Acceso a la cocina para ver y gestionar pedidos',
           isDefault: true,
           isSystem: false,
-          permissions: allPermissions.filter((id, index) => index === 3),
+          permissions: [allPermissions[3]], // Solo PRODUCTS
           businessId,
         },
         {
@@ -66,9 +88,7 @@ export class RolesService extends PrismaClient implements OnModuleInit {
           description: 'Acceso para tomar pedidos y gestionar mesas',
           isDefault: true,
           isSystem: false,
-          permissions: allPermissions.filter((id, index) =>
-            [3, 4].includes(index),
-          ),
+          permissions: [allPermissions[3], allPermissions[4]], // PRODUCTS y CATEGORIES
           businessId,
         },
       ];
@@ -77,8 +97,21 @@ export class RolesService extends PrismaClient implements OnModuleInit {
         data: defaultRoles,
       });
 
+      const createdCount = await this.role.count({
+        where: { businessId },
+      });
+
       this.logger.log(`Default roles created for business ${businessId}`);
+
+      return {
+        message: 'Default roles created successfully',
+        count: createdCount,
+        businessId,
+        roles: defaultRoles.map((r) => r.name),
+      };
     } catch (error) {
+      if (error instanceof RpcException) throw error;
+
       this.logger.error(`Error creating default roles: ${error.message}`);
       throw new RpcException({
         status: 500,

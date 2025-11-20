@@ -105,7 +105,7 @@ export class ModuleAccessService extends PrismaClient implements OnModuleInit {
         {
           name: 'REPORTS',
           displayName: 'Reportes',
-          description: 'Reportes y analíticas',
+          description: 'Reportes',
           icon: 'analytics',
           order: 9,
           isActive: true,
