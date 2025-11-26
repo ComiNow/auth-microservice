@@ -11,16 +11,17 @@ async function bootstrap() {
     {
       transport: Transport.NATS,
       options: {
-        servers: envs.natsServers
-      }
-    }
+        servers: envs.natsServers,
+        queue: 'auth-service',
+      },
+    },
   );
 
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true
-    })
+      forbidNonWhitelisted: true,
+    }),
   );
 
   await app.listen();
